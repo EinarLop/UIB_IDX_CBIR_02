@@ -31,7 +31,20 @@ def build_kdtree(dataset, max_descriptors=400, num_trees=4):
     image_map = []  # List to map imgIdx (DMatch) to image names
     
     # YOUR CODE HERE
-    raise NotImplementedError()
+    descriptors_list = []
+    for image_name in dataset.get_database_images():
+        descriptors = dataset.get_descriptors(image_name)
+        if descriptors is not None:
+            if descriptors.shape[0] > max_descriptors:
+                descriptors = descriptors[:max_descriptors]
+            descriptors_list.append(descriptors)
+            image_map.append(image_name)
+    index_params = dict(algorithm = 1, trees = num_trees)
+    search_params = dict(checks=50)
+    flann = cv2.FlannBasedMatcher(index_params, search_params) # type: ignore
+    if descriptors_list:
+            flann.add(descriptors_list)
+            flann.train()
     # -----
 
     return flann, image_map
