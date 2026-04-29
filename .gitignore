@@ -1,2 +1,3 @@
 holidays_deep_features.npy
 __pycache__/*
+.vscode/*
