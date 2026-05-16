@@ -1,8 +1,7 @@
 import numpy as np
-from collections import Counter
+from collections import defaultdict
 import cv2
 import faiss
-import os
 import struct
 
 def build_kdtree(dataset, max_descriptors=400, num_trees=4):
@@ -70,7 +69,14 @@ def search_kdtree(query_descs, flann, k=2, ratio_test=0.75):
     """
 
     # YOUR CODE HERE
-    raise NotImplementedError()
+    ranked_image_ids = []
+    matches = flann.knnMatch(query_descs,k=k)
+    matches_counts = defaultdict(int)
+    for (m,n) in matches:
+        if(m.distance < ratio_test*n.distance):
+            ranked_image_ids.append(m.imgIdx)
+    
+    return ranked_image_ids
     # -----
 
 
