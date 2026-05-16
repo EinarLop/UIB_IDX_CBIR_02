@@ -1,5 +1,5 @@
 import numpy as np
-from collections import defaultdict
+from collections import Counter
 import cv2
 import faiss
 import struct
@@ -71,11 +71,16 @@ def search_kdtree(query_descs, flann, k=2, ratio_test=0.75):
     # YOUR CODE HERE
     ranked_image_ids = []
     matches = flann.knnMatch(query_descs,k=k)
-    matches_counts = defaultdict(int)
-    for (m,n) in matches:
-        if(m.distance < ratio_test*n.distance):
-            ranked_image_ids.append(m.imgIdx)
-    
+    matches_counts = Counter()
+    for match in matches:
+        if len(match) >= 2:
+            m, n = match[0], match[1]
+            if(m.distance < ratio_test*n.distance):
+                matches_counts[m.imgIdx] += 1
+        else:
+            m = match[0]
+            matches_counts[m.imgIdx] += 1
+    ranked_image_ids = [img_idx for img_idx, count in matches_counts.most_common()]
     return ranked_image_ids
     # -----
 
