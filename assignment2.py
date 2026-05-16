@@ -2,7 +2,6 @@ import numpy as np
 from collections import Counter
 import cv2
 import faiss
-import os
 import struct
 
 def build_kdtree(dataset, max_descriptors=400, num_trees=4):
@@ -31,7 +30,20 @@ def build_kdtree(dataset, max_descriptors=400, num_trees=4):
     image_map = []  # List to map imgIdx (DMatch) to image names
     
     # YOUR CODE HERE
-    raise NotImplementedError()
+    descriptors_list = []
+    for image_name in dataset.get_database_images():
+        descriptors = dataset.get_descriptors(image_name)
+        if descriptors is not None:
+            if descriptors.shape[0] > max_descriptors:
+                descriptors = descriptors[:max_descriptors]
+            descriptors_list.append(descriptors)
+            image_map.append(image_name)
+    index_params = dict(algorithm = 1, trees = num_trees)
+    search_params = dict(checks=50)
+    flann = cv2.FlannBasedMatcher(index_params, search_params) # type: ignore
+    if descriptors_list:
+            flann.add(descriptors_list)
+            flann.train()
     # -----
 
     return flann, image_map
@@ -57,7 +69,19 @@ def search_kdtree(query_descs, flann, k=2, ratio_test=0.75):
     """
 
     # YOUR CODE HERE
-    raise NotImplementedError()
+    ranked_image_ids = []
+    matches = flann.knnMatch(query_descs,k=k)
+    matches_counts = Counter()
+    for match in matches:
+        if len(match) >= 2:
+            m, n = match[0], match[1]
+            if(m.distance < ratio_test*n.distance):
+                matches_counts[m.imgIdx] += 1
+        else:
+            m = match[0]
+            matches_counts[m.imgIdx] += 1
+    ranked_image_ids = [img_idx for img_idx, count in matches_counts.most_common()]
+    return ranked_image_ids
     # -----
 
 
