@@ -99,7 +99,20 @@ def build_lsh(dataset, max_descriptors=400, num_bits=128):
     image_map = []  # List to map features to image names
     
     # YOUR CODE HERE
-    raise NotImplementedError()
+
+    database_images = dataset.get_database_images()
+
+    d = 128
+
+    lsh_index = faiss.IndexLSH(d, num_bits)
+
+    for image in database_images:
+      curr_descriptors = dataset.get_descriptors(image)[:max_descriptors]
+      if curr_descriptors is None:
+        continue
+      lsh_index.add(curr_descriptors)
+      image_map.extend([image] * len(curr_descriptors))
+
     # -----
 
     return lsh_index, image_map
@@ -123,7 +136,22 @@ def search_lsh(query_descs_dict, lsh_index, image_map, k=2):
     ranked_dict = {}
 
     # YOUR CODE HERE
-    raise NotImplementedError()
+
+    for filename, descriptors in query_descs_dict.items():
+        if descriptors is None:
+            continue
+
+        distances, indices = lsh_index.search(descriptors, k) 
+
+        votes = Counter()
+        for idx in indices.flatten():
+            if idx == -1:
+                continue
+            image_name = image_map[idx]
+            votes[image_name] += 1              
+
+        ranked_dict[filename] = [img for img, _ in votes.most_common()]
+        
     # -----
 
     return ranked_dict

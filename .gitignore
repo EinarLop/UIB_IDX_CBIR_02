@@ -1,3 +1,5 @@
 holidays_deep_features.npy
-__pycache__/*
-.vscode/*
+holidays_mini
+__pycache__
+.vscode
+.claude
