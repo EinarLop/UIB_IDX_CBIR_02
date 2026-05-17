@@ -315,7 +315,22 @@ def build_hnsw(dataset_handler, deep_features, M=32, efConstruction=64):
     image_map = []  # List to map features to image names
     
     # YOUR CODE HERE
-    raise NotImplementedError()
+    database_images = dataset_handler.get_database_images()
+    
+    db_vectors = []
+    for image in database_images:
+        if image in deep_features:
+            db_vectors.append(deep_features[image])
+            image_map.append(image)  
+    if not db_vectors:
+        return None, image_map
+    db_vectors = np.vstack(db_vectors).astype(np.float32)
+    faiss.normalize_L2(db_vectors)
+    d = db_vectors.shape[1] # Descriptor dimensionality (2048)
+    hnsw_index = faiss.IndexHNSWFlat(d, M, faiss.METRIC_INNER_PRODUCT)
+    hnsw_index.hnsw.efConstruction = efConstruction
+    hnsw_index.add(db_vectors) # type: ignore
+    
     # -----
     
     return hnsw_index, image_map
@@ -340,7 +355,23 @@ def search_hnsw(query_descs_dict, index, image_map, k=10, efSearch=32):
     ranked_dict = {}
 
     # YOUR CODE HERE
-    raise NotImplementedError()
+    index.hnsw.efSearch = efSearch
+    
+    for filename, descriptor in query_descs_dict.items():
+        if descriptor is None:
+            continue   
+        # Ensure the descriptor is a 2D float32 array: shape (1, 2048)
+        query_vector = np.array(descriptor, dtype=np.float32)
+        if query_vector.ndim == 1:
+            query_vector = query_vector.reshape(1, -1)
+        faiss.normalize_L2(query_vector)
+        distances, indices = index.search(query_vector, k)
+        ranked_list = []
+        for idx in indices.flatten():
+            if idx != -1:  # -1 indicates FAISS couldn't find enough neighbors
+                ranked_list.append(image_map[idx])
+                
+        ranked_dict[filename] = ranked_list
     # -----
 
     return ranked_dict
