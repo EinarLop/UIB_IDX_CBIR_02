@@ -112,11 +112,13 @@ def build_lsh(dataset, max_descriptors=400, num_bits=128):
     lsh_index = faiss.IndexLSH(d, num_bits)
 
     for image in database_images:
-      curr_descriptors = dataset.get_descriptors(image)[:max_descriptors]
-      if curr_descriptors is None:
-        continue
-      lsh_index.add(curr_descriptors)
-      image_map.extend([image] * len(curr_descriptors))
+        curr_descriptors = dataset.get_descriptors(image)
+        if curr_descriptors is None or len(curr_descriptors) == 0:
+            continue
+
+        curr_descriptors = curr_descriptors[:max_descriptors]
+        lsh_index.add(curr_descriptors)
+        image_map.extend([image] * len(curr_descriptors))
 
     # -----
 
