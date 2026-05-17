@@ -2,7 +2,6 @@ import numpy as np
 from collections import Counter
 import cv2
 import faiss
-import os
 import struct
 
 def build_kdtree(dataset, max_descriptors=400, num_trees=4):
@@ -31,7 +30,20 @@ def build_kdtree(dataset, max_descriptors=400, num_trees=4):
     image_map = []  # List to map imgIdx (DMatch) to image names
     
     # YOUR CODE HERE
-    raise NotImplementedError()
+    descriptors_list = []
+    for image_name in dataset.get_database_images():
+        descriptors = dataset.get_descriptors(image_name)
+        if descriptors is not None:
+            if descriptors.shape[0] > max_descriptors:
+                descriptors = descriptors[:max_descriptors]
+            descriptors_list.append(descriptors)
+            image_map.append(image_name)
+    index_params = dict(algorithm = 1, trees = num_trees)
+    search_params = dict(checks=50)
+    flann = cv2.FlannBasedMatcher(index_params, search_params) # type: ignore
+    if descriptors_list:
+            flann.add(descriptors_list)
+            flann.train()
     # -----
 
     return flann, image_map
@@ -57,7 +69,19 @@ def search_kdtree(query_descs, flann, k=2, ratio_test=0.75):
     """
 
     # YOUR CODE HERE
-    raise NotImplementedError()
+    ranked_image_ids = []
+    matches = flann.knnMatch(query_descs,k=k)
+    matches_counts = Counter()
+    for match in matches:
+        if len(match) >= 2:
+            m, n = match[0], match[1]
+            if(m.distance < ratio_test*n.distance):
+                matches_counts[m.imgIdx] += 1
+        else:
+            m = match[0]
+            matches_counts[m.imgIdx] += 1
+    ranked_image_ids = [img_idx for img_idx, count in matches_counts.most_common()]
+    return ranked_image_ids
     # -----
 
 
@@ -353,7 +377,22 @@ def build_hnsw(dataset_handler, deep_features, M=32, efConstruction=64):
     image_map = []  # List to map features to image names
     
     # YOUR CODE HERE
-    raise NotImplementedError()
+    database_images = dataset_handler.get_database_images()
+    
+    db_vectors = []
+    for image in database_images:
+        if image in deep_features:
+            db_vectors.append(deep_features[image])
+            image_map.append(image)  
+    if not db_vectors:
+        return None, image_map
+    db_vectors = np.vstack(db_vectors).astype(np.float32)
+    faiss.normalize_L2(db_vectors)
+    d = db_vectors.shape[1] # Descriptor dimensionality (2048)
+    hnsw_index = faiss.IndexHNSWFlat(d, M, faiss.METRIC_INNER_PRODUCT)
+    hnsw_index.hnsw.efConstruction = efConstruction
+    hnsw_index.add(db_vectors) # type: ignore
+    
     # -----
     
     return hnsw_index, image_map
@@ -378,7 +417,23 @@ def search_hnsw(query_descs_dict, index, image_map, k=10, efSearch=32):
     ranked_dict = {}
 
     # YOUR CODE HERE
-    raise NotImplementedError()
+    index.hnsw.efSearch = efSearch
+    
+    for filename, descriptor in query_descs_dict.items():
+        if descriptor is None:
+            continue   
+        # Ensure the descriptor is a 2D float32 array: shape (1, 2048)
+        query_vector = np.array(descriptor, dtype=np.float32)
+        if query_vector.ndim == 1:
+            query_vector = query_vector.reshape(1, -1)
+        faiss.normalize_L2(query_vector)
+        distances, indices = index.search(query_vector, k)
+        ranked_list = []
+        for idx in indices.flatten():
+            if idx != -1:  # -1 indicates FAISS couldn't find enough neighbors
+                ranked_list.append(image_map[idx])
+                
+        ranked_dict[filename] = ranked_list
     # -----
 
     return ranked_dict
