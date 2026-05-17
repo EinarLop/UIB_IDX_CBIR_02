@@ -223,7 +223,19 @@ class BagOfWordsRetriever:
         """
         
         # YOUR CODE HERE
-        raise NotImplementedError()
+
+        distances, indices = self.vocindex.search(descriptors, 1)
+        indices = indices.flatten()
+        
+        self.image_histograms[image_name] = np.bincount(indices, minlength=len(self.vocabulary))
+
+        unique_indices =  np.unique(indices)
+
+        for index in unique_indices:
+            if index not in self.inverted_index:
+                self.inverted_index[index] = []
+            self.inverted_index[index].append(image_name)
+        
         # -----
 
     def apply_tfidf(self):
@@ -241,7 +253,22 @@ class BagOfWordsRetriever:
         """
 
         # YOUR CODE HERE
-        raise NotImplementedError()
+
+        total_images = len(self.image_histograms)
+        vocab_size = len(self.vocabulary)
+
+        idf = np.zeros(vocab_size)
+        for word_id in range(vocab_size):
+            num_images_with_word = len(self.inverted_index.get(word_id, []))
+            idf[word_id] = np.log((total_images + 1) / (num_images_with_word + 1) ) + 1
+
+        for key, value in self.image_histograms.items():
+            tf = value/ value.sum()
+            self.image_histograms[key] = tf * idf
+        
+        self.idf = idf 
+        self.use_tfidf = True
+        
         # -----
 
     def retrieve_images(self, query_image, top_k=10):
@@ -263,7 +290,42 @@ class BagOfWordsRetriever:
         """
 
         # YOUR CODE HERE
-        raise NotImplementedError()
+
+        query_descriptors = self.dataset_handler.get_descriptors(query_image)
+        if query_descriptors is None:
+            return []
+        
+        distances, indices = self.vocindex.search(query_descriptors, 1)
+        indices = indices.flatten()
+        query_histogram = np.bincount(indices, minlength=len(self.vocabulary))
+
+        if self.use_tfidf:
+            tf = query_histogram / query_histogram.sum()
+            query_histogram = tf * self.idf
+        
+        candidates = set()
+        query_words = np.nonzero(query_histogram)[0]
+        for word in query_words:
+            if word in self.inverted_index:
+                candidates.update(self.inverted_index[word])
+
+        scores = []
+       
+        query_norm = np.linalg.norm(query_histogram)
+
+        for candidate in candidates:
+            cand_hist = self.image_histograms[candidate]
+            cand_norm = np.linalg.norm(cand_hist)
+
+            if cand_norm == 0 or query_norm == 0:
+                continue
+
+            score = np.dot(cand_hist, query_histogram) / (cand_norm * query_norm)
+            scores.append((candidate, score))
+
+        sorted_scores = sorted(scores,key=lambda x: x[1], reverse=True)
+
+        return sorted_scores[:top_k]
         # -----
 
 
